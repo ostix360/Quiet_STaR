@@ -1,0 +1,19 @@
+transformers
+deepspeed
+matplotlib
+flash_attn
+datasets
+pandas~=2.1.4
+peft
+bitsandbytes
+packaging
+xformers
+IPython
+numpy
+trl
+setuptools~=68.2.0
+tqdm
+einops~=0.7.0
+accelerate
+# "unsloth[cu121_ampere_torch220] @ git+https://github.com/unslothai/unsloth.git"
+# torch==2.2.0
