@@ -51,8 +51,6 @@ input_ids = tokenizer.encode(input, return_tensors="pt").to(model.device)
 
 firsts_tokens = len(input_ids[0])
 
-# output = model.generate(input_ids, max_length=50)
-
 
 def generate(input_ids, attention_mask, model, temp=0.9, max_length=20):
     with torch.no_grad():
@@ -93,35 +91,9 @@ start = time.time()
 out = generate(input_ids, torch.ones_like(input_ids), model, max_length=400)
 end = time.time()
 
-# print(tokenizer.decode(out[0], skip_special_tokens=False))
 print(tokenizer.decode(out[0][0], skip_special_tokens=False))
 
 print(f"total tokens gen: {modeling_mistral.num_token_gen} for {len(out[0][0]) - firsts_tokens} tokens finally generated")
 print(f"total time: {end - start} for {len(out[0][0]) - firsts_tokens} tokens finally generated")
 
 print("hi")
-
-
-# import torch
-# from transformers import AutoModelForCausalLM, AutoTokenizer
-# import time
-#
-# mistral_model = "mistralai/Mistral-7B-Instruct-v0.1"
-#
-# mistral = AutoModelForCausalLM.from_pretrained(mistral_model, load_in_8bit=True)
-# mistral_tokenizer = AutoTokenizer.from_pretrained(mistral_model)
-#
-# input = "Solve this equation and explain me 2x + 3x² = 5."
-#
-# input_ids = mistral_tokenizer.encode(input, return_tensors="pt").to(mistral.device)
-#
-# firsts_tokens = len(input_ids[0])
-#
-# start = time.time()
-# mistral_out = mistral.generate(input_ids, max_length=70)
-# end = time.time()
-#
-# print(mistral_tokenizer.decode(mistral_out[0], skip_special_tokens=False))
-#
-# print(f"total tokens gen: {len(mistral_out[0]) - firsts_tokens} tokens finally generated")
-# print(f"total time: {end - start} for {len(mistral_out[0]) - firsts_tokens} tokens finally generated")
