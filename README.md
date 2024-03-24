@@ -1,12 +1,11 @@
 # Quiet Star Algorithm Implementation
 
-This project is an implementation of the Quiet Star Algorithm as described in this [paper](https://arxiv.org/abs/2403.09629).
+This is a fork of the [Quiet-STaR](https://github.com/jiaweizzhao/GaLore) project.
 
 
 ## Table of Contents
 
 - [Installation](#installation)
-- [Usage](#usage)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -20,6 +19,6 @@ pip install -r requirements.txt
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details but the original project is licensed under the Apache License 2.0 (see [LICENSE-APACHE](LICENSE-APACHE)).
 
 

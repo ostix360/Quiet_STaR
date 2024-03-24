@@ -1,19 +1,20 @@
-transformers
-deepspeed
-matplotlib
-flash_attn
+transformers~=4.37.0.dev0
 datasets
+flash_attn
+# torch==2.2.1 install with pip3 install torch --index-url https://download.pytorch.org/whl/cu121
+wandb
+accelerate
+matplotlib
+seaborn
+termcolor
+fsspec==2023.5.0
+reportlab
+galore-torch
+trl~=0.7.9
 pandas~=2.1.4
-peft
-bitsandbytes
+peft~=0.8.2
+bitsandbytes~=0.42.0
 packaging
 xformers
-IPython
-numpy
-trl
-setuptools~=68.2.0
-tqdm
-einops~=0.7.0
-accelerate
-# "unsloth[cu121_ampere_torch220] @ git+https://github.com/unslothai/unsloth.git"
-# torch==2.2.0
+deepspeed
+matplotlib
