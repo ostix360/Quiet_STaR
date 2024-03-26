@@ -43,7 +43,7 @@ model.eval_mode = True
 model.first_run = False
 model.rm_initialized = True
 
-model.original_mode = True
+model.original_mode = False
 
 input = "Solve the equation in detail 2x + 3x² = 5."
 

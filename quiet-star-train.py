@@ -1,4 +1,7 @@
 import torch
+
+from trainer import SFTrainer
+
 torch.backends.cuda.matmul.allow_tf32 = True
 import random
 from transformers import AutoTokenizer, AutoModelForCausalLM, TextGenerationPipeline, AutoConfig
@@ -16,12 +19,10 @@ torch.manual_seed(random_seed)
 random.seed(random_seed)
 
 # MAIN SETUP
-root_prefix = "YOUR_CACHE_PATH_HERE"
-wandb_cache_dir = root_prefix + "cache/quietstar/wandb_cache"
-dataset_name = 'open-web-math/open-web-math'
-# dataset_name = 'c4'
+
+wandb_cache_dir ="./cache/quietstar/wandb_cache"
 project_name = "quiet-star"
-os.environ["WANDB_PROJECT"] = project_name + "-" + dataset_name.split("/")[-1]
+os.environ["WANDB_PROJECT"] = project_name + "-all-ds"
 os.environ["WANDB_CACHE_DIR"] = wandb_cache_dir
 n_ahead_talk_global = 4
 n_passes_global = 2
@@ -31,102 +32,11 @@ full_batch_size = 8
 eval_and_logging_steps = 10
 save_steps = 100
 
-def model_init(params):
-    original = False
-    if params is None:
-        params = {}
-    else:
-        params = params.params
-    # save params to file
-    n_ahead = params.get("n_ahead", n_ahead_global if not original else 1)
-    n_ahead_talk = params.get("n_ahead_talk", n_ahead_talk_global if not original else 1)
-    n_passes = params.get("n_passes", n_passes_global if not original else 1)
-    gumbel_temperature = params.get("gumbel_temperature", 1)
-    use_start_thought_token = params.get("use_start_thought_token", True)
-    use_end_thought_token = params.get("use_end_thought_token", True)
-    include_policy_loss = params.get("include_policy_loss", True)
-    gumbel_detach = params.get("gumbel_detach", True)
-    merged_talk_heads = params.get("merged_talk_heads", True)
-    gradient_accumulation_steps = params.get("gradient_accumulation_steps", global_gradient_accumulation_steps)
-    residual_think_head = params.get("residual_think_head", False)
-    optimize_lm_head_only_at_start = params.get("optimize_lm_head_only_at_start", False)
-
-    model_name = "mistralai/Mistral-7B-v0.1"
-    print("Loading model")
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-        device_map='auto',
-        cache_dir=root_prefix + "cache",
-        max_thoughts=n_ahead + n_ahead_talk + 1,
-        merged_talk_heads=merged_talk_heads,
-        merged_lm_and_talk_heads=False,
-        merged_lm_and_think_heads=True,
-        use_concat_talk_head=True,
-        use_shallow_think=True,
-        use_shallow_talk=False,
-        use_complex_think_head=False,
-        use_complex_talk_head=True,
-        use_weighted_talk_head=True,
-    )
-    print("Loaded model")
-    tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-v0.1")
-    tokenizer.padding_side = "right"
-    tokenizer.pad_token_id = tokenizer.eos_token_id
-
-    special_tokens_to_add = []
-    if model.use_start_thought_token:
-        special_tokens_to_add.append("<|startthought|>")
-    if model.use_end_thought_token:
-        special_tokens_to_add.append("<|endthought|>")
-    if special_tokens_to_add:
-        tokenizer.add_special_tokens({"additional_special_tokens": special_tokens_to_add})
-        model.resize_token_embeddings(len(tokenizer))
-    model.tokenizer = tokenizer
-    model.gumbel_detach = gumbel_detach
-    model.include_policy_loss = include_policy_loss
-    model.use_end_thought_token = use_end_thought_token
-    model.use_start_thought_token = use_start_thought_token
-    model.n_ahead = n_ahead
-    model.n_ahead_talk = n_ahead_talk
-    model.n_passes = n_passes
-    model.n_tokens_print = gradient_accumulation_steps
-    model.gradient_accumulation_steps = gradient_accumulation_steps
-    model.residual_think_head = residual_think_head
-    model.optimize_lm_head_only_at_start = optimize_lm_head_only_at_start
-    model.gumbel_temperature = gumbel_temperature
-    model.wandb_enabled = True
-    model.original_mode = original
-    model.config_params = params
-    model.run_start = int(time.time())
-    model.kill_after = 100
-    model.train()
-    return model
-
-# Load dataset
-dataset = load_dataset(
-    dataset_name,
-    "en" if "c4" in dataset_name else "default",
-    split=f"train[:{n_examples}]",
-    ignore_verifications=True,
-    num_proc=16,
-    cache_dir=root_prefix + "cache/datasets/",
-)
-
-train_dataset = dataset.shuffle(seed=random_seed).map(preprocess_function, batched=True, writer_batch_size=200)
-eval_dataset_gsm = load_dataset("gsm8k", "main", split="test", ignore_verifications=True).map(preprocess_eval_function_gsm, batched=True, writer_batch_size=200)
-eval_dataset_csqa = load_dataset("tau/commonsense_qa", "default", split="validation", ignore_verifications=True).map(preprocess_eval_function_csqa, batched=True, writer_batch_size=200)
-
-eval_datasets = {
-    "gsm8k": eval_dataset_gsm,
-    "csqa": eval_dataset_csqa,
-}
-
 batch_size = full_batch_size // n_passes_global
 global_gradient_accumulation_steps = full_batch_size // batch_size
 run_id = int(time.time())
 training_args = TrainingArguments(
-    output_dir=root_prefix + f"cache/quietstar/{run_id}",
+    output_dir=f"./cache/quietstar/{run_id}",
     learning_rate=1e-6,
     optim="adamw_torch_fused" if torch.cuda.is_available() else "adamw_torch",
     per_device_train_batch_size=batch_size,
@@ -146,12 +56,96 @@ training_args = TrainingArguments(
     run_name=f"n={n_ahead_global}_nt={n_ahead_talk_global}_np={n_passes_global}",
 )
 
-trainer = Trainer(
-    args=training_args,
-    train_dataset=train_dataset,
-    eval_dataset=eval_datasets,
-    compute_metrics=compute_metrics,
-    model_init=model_init,
-)
+model_args = {
+    "rank": 128,
+    "update_proj_gap": 100,
+    "galore_scale": 1,
+    "proj_type": "topk",
+    "lr": 1e-6,
+    "weight_decay": 0.001,
+    "warmup_steps": 20,
+}
 
-trainer.train()
+model_name = "unsloth/mistral-7b-bnb-4bit"
+trainer = SFTrainer(model_name, 2048)
+
+# patch unsloth and transformers
+from transformers.models.mistral import configuration_mistral as original_configuration_mistral
+from transformers.models.mistral import modeling_mistral as original_modeling_mistral
+
+import configuration_mistral
+import modeling_mistral
+from patch_unsloth import patch
+
+original_modeling_mistral.MistralModel = modeling_mistral.MistralModel
+original_modeling_mistral.MistralForCausalLM = modeling_mistral.MistralForCausalLM
+original_configuration_mistral.MistralConfig = configuration_mistral.MistralConfig
+patch()
+
+model, tokenizer = trainer.load_model(seed=12, use_gradient_checkpointing=True)
+
+tokenizer.padding_side = "right"
+tokenizer.pad_token_id = tokenizer.eos_token_id
+
+mistral_model = model.base_model.model
+mistral_config = mistral_model.config
+
+mistral_config.max_thoughts = n_ahead_global + n_ahead_talk_global + 1
+mistral_config.merged_talk_heads = True
+mistral_config.merged_lm_and_talk_heads = False
+mistral_config.merged_lm_and_think_heads = True
+mistral_config.use_concat_talk_head = True
+mistral_config.use_shallow_think = True
+mistral_config.use_shallow_talk = False
+mistral_config.use_complex_think_head = False
+mistral_config.use_complex_talk_head = True
+mistral_config.use_weighted_talk_head = True
+
+# set config to model
+mistral_model.config = mistral_config
+mistral_model.max_thoughts = mistral_config.max_thoughts
+mistral_model.merged_talk_heads = mistral_config.merged_talk_heads
+mistral_model.merged_lm_and_talk_heads = mistral_config.merged_lm_and_talk_heads
+mistral_model.merged_lm_and_think_heads = mistral_config.merged_lm_and_think_heads
+mistral_model.use_concat_talk_head = mistral_config.use_concat_talk_head
+mistral_model.use_shallow_think = mistral_config.use_shallow_think
+mistral_model.use_shallow_talk = mistral_config.use_shallow_talk
+mistral_model.use_complex_think_head = mistral_config.use_complex_think_head
+mistral_model.use_complex_talk_head = mistral_config.use_complex_talk_head
+mistral_model.use_weighted_talk_head = mistral_config.use_weighted_talk_head
+
+special_tokens_to_add = []
+if mistral_model.use_start_thought_token:
+    special_tokens_to_add.append("<|startthought|>")
+if mistral_model.use_end_thought_token:
+    special_tokens_to_add.append("<|endthought|>")
+if special_tokens_to_add:
+    tokenizer.add_special_tokens({"additional_special_tokens": special_tokens_to_add})
+    mistral_model.resize_token_embeddings(len(tokenizer))
+
+mistral_model.tokenizer = tokenizer
+mistral_model.gumbel_detach = True
+mistral_model.include_policy_loss = True
+mistral_model.use_end_thought_token = True
+mistral_model.use_start_thought_token = True
+mistral_model.n_ahead = n_ahead_global
+mistral_model.n_ahead_talk = n_ahead_talk_global
+mistral_model.n_passes = n_passes_global
+mistral_model.n_tokens_print = global_gradient_accumulation_steps
+mistral_model.gradient_accumulation_steps = global_gradient_accumulation_steps
+mistral_model.residual_think_head = False
+mistral_model.optimize_lm_head_only_at_start = False
+mistral_model.gumbel_temperature = 1
+mistral_model.wandb_enabled = True
+mistral_model.original_mode = False
+mistral_model.config_params = {}
+mistral_model.run_start = int(time.time())
+mistral_model.kill_after = 100
+
+model.base_model = mistral_model
+model.train()
+
+trainer.prepare_dataset(ds_split=0.001)
+trainer.process_model_and_datasets(**model_args)
+
+trainer.train("./cache/quietstar/trains/01", args=training_args)

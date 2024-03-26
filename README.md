@@ -38,6 +38,12 @@ pip install "unsloth[cu121-torch220] @ git+https://github.com/unslothai/unsloth.
 
 To train the model, because of hardware limitations, we use [unsloth](https://github.com/unslothai/unsloth) and [galore](https://github.com/jiaweizzhao/GaLore) to train the model.
 
+
+The training script is in [quiet-star-train.py](quiet-star-train.py). 
+
+Work in progress: Still doesn't work.
+
+
 This section will be updated soon.
 
 ### Inference
